@@ -50,13 +50,13 @@ fi
 print_phase1() {
   echo -e "\n${BLUE}📊 Phase 1: 프로젝트 초기 설정${NC}"
   echo -e "${GREEN}✅ 개발팀 완료: 7/7${NC}"
-  echo -e "${YELLOW}⬜ 사용자 액션 필요: 0/5${NC}"
-  echo -e "${GRAY}   ├─ Notion DB 3개 생성 + 프로퍼티 설정${NC}"
-  echo -e "${GRAY}   ├─ Notion Integration 생성 + API 키 획득${NC}"
-  echo -e "${GRAY}   ├─ .env.local 파일 작성 및 값 입력${NC}"
-  echo -e "${GRAY}   ├─ Integration에 3개 DB 공유 권한 설정${NC}"
-  echo -e "${GRAY}   └─ npm run dev 실행 후 정상 구동 확인${NC}"
-  echo -e "\n${GREEN}완료도: 7/12 (58%)${NC}"
+  echo -e "${GREEN}✅ 사용자 액션 완료: 5/5${NC}"
+  echo -e "${GRAY}   ├─ ✅ Notion DB 3개 생성 + 프로퍼티 설정${NC}"
+  echo -e "${GRAY}   ├─ ✅ Notion Integration 생성 + API 키 획득${NC}"
+  echo -e "${GRAY}   ├─ ✅ .env.local 파일 작성 및 값 입력${NC}"
+  echo -e "${GRAY}   ├─ ✅ Integration에 3개 DB 공유 권한 설정${NC}"
+  echo -e "${GRAY}   └─ ✅ npm run dev 실행 후 정상 구동 확인${NC}"
+  echo -e "\n${GREEN}완료도: 12/12 (100%)${NC}"
 }
 
 # Phase 2 진행 상태
@@ -95,7 +95,7 @@ print_summary() {
   echo -e "\n${BLUE}📈 전체 진행 요약${NC}"
 
   local total_phase1=12
-  local completed_phase1=7
+  local completed_phase1=12
   local total_phase2=6
   local completed_phase2=1
   local total_phase3=3
@@ -107,7 +107,7 @@ print_summary() {
   local completed=$((completed_phase1 + completed_phase2 + completed_phase3 + completed_phase4))
   local percentage=$((completed * 100 / total))
 
-  echo -e "Phase 1: ${GREEN}$completed_phase1/$total_phase1${NC} (58%)"
+  echo -e "Phase 1: ${GREEN}$completed_phase1/$total_phase1${NC} (100%)"
   echo -e "Phase 2: ${YELLOW}$completed_phase2/$total_phase2${NC} (17%)"
   echo -e "Phase 3: ${YELLOW}$completed_phase3/$total_phase3${NC} (0%)"
   echo -e "Phase 4: ${YELLOW}$completed_phase4/$total_phase4${NC} (0%)"
@@ -129,11 +129,11 @@ print_list() {
   echo -e "${GREEN}✅ components/portfolio/ 디렉토리 생성${NC}"
   echo -e "${GREEN}✅ components/layout/header.tsx NAV_ITEMS 확인${NC}"
   echo -e "${GREEN}✅ next.config.ts 이미지 도메인 준비${NC}"
-  echo -e "${YELLOW}⬜ Notion DB 3개 생성 (사용자)${NC}"
-  echo -e "${YELLOW}⬜ Notion Integration 생성 (사용자)${NC}"
-  echo -e "${YELLOW}⬜ .env.local 파일 작성 (사용자)${NC}"
-  echo -e "${YELLOW}⬜ Integration 공유 권한 설정 (사용자)${NC}"
-  echo -e "${YELLOW}⬜ npm run dev 확인 (사용자)${NC}"
+  echo -e "${GREEN}✅ Notion DB 3개 생성 (사용자)${NC}"
+  echo -e "${GREEN}✅ Notion Integration 생성 (사용자)${NC}"
+  echo -e "${GREEN}✅ .env.local 파일 작성 (사용자)${NC}"
+  echo -e "${GREEN}✅ Integration 공유 권한 설정 (사용자)${NC}"
+  echo -e "${GREEN}✅ npm run dev 확인 (사용자)${NC}"
 
   echo -e "\n${BLUE}Phase 2: 공통 모듈 개발${NC}"
   echo -e "${YELLOW}⬜ Task 1️⃣ (722fdccd): next.config.ts 이미지 도메인${NC}"
