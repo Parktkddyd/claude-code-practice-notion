@@ -1,0 +1,394 @@
+{
+  "tasks": [
+    {
+      "id": "722fdccd-d18c-466f-8047-6354279697d0",
+      "name": "Phase 1: next.config.ts 이미지 도메인 등록 및 헤더/레이아웃 정합성 확인",
+      "description": "next.config.ts에 Notion 파일 CDN 호스트(prod-files-secure.s3.us-west-2.amazonaws.com, s3.us-west-2.amazonaws.com)를 images.remotePatterns로 등록하여 향후 next/image로 Notion 썸네일을 렌더링할 수 있도록 준비한다. 또한 components/layout/header.tsx의 NAV_ITEMS(/, /projects, /career)가 Phase 3에서 생성할 라우트와 일치하는지 재확인한다(수정 불필요, 확인만).",
+      "notes": "비파괴적 변경(기존 빈 NextConfig 객체에 키 추가만). header.tsx는 읽기 검증만 하고 수정하지 않음.",
+      "status": "pending",
+      "dependencies": [],
+      "createdAt": "2026-06-28T09:23:27.842Z",
+      "updatedAt": "2026-06-28T09:23:27.842Z",
+      "relatedFiles": [
+        {
+          "path": "next.config.ts",
+          "type": "TO_MODIFY",
+          "description": "images.remotePatterns 추가"
+        },
+        {
+          "path": "components/layout/header.tsx",
+          "type": "REFERENCE",
+          "description": "NAV_ITEMS 라우트 일치 확인용"
+        }
+      ],
+      "implementationGuide": "pseudocode:\n1. next.config.ts 열기\n2. NextConfig 객체에 images: { remotePatterns: [ { protocol: 'https', hostname: 'prod-files-secure.s3.us-west-2.amazonaws.com' }, { protocol: 'https', hostname: 's3.us-west-2.amazonaws.com' } ] } 추가\n3. header.tsx의 NAV_ITEMS 배열을 Read로 재확인, /projects, /career 경로가 Phase 3 라우트와 일치하는지 검증(수정 없음)",
+      "verificationCriteria": "next.config.ts에 images.remotePatterns가 두 호스트를 포함하여 추가되고, npx tsc --noEmit이 통과한다.",
+      "analysisResult": "ROADMAP.md의 Phase 1→2→3→4 순서를 그대로 따라 Notion CMS 기반 포트폴리오 사이트를 구현한다. lib/notion.ts(데이터 레이어, lazy env 검증, Zod 검증, fallback 처리) → components/portfolio/(8~9개 프레젠테이션 컴포넌트, 기존 ui/ 재사용) → app/ 페이지 4개(신규 3개 + page.tsx 수정) 순서로 의존성이 흐른다. Notion DB 생성/키 발급/.env.local 입력/실데이터 검증/Vercel 배포는 사용자가 별도 진행하므로 작업 범위에서 제외하고, 코드는 DB 없이도 타입체크/빌드/lint를 통과하고 데이터 부재 시 graceful fallback으로 동작해야 한다. PRD.md/ROADMAP.md에 정의된 타입, Zod 스키마, 함수 시그니처, 페이지 코드 예시를 그대로 따르며 재설계하지 않는다."
+    },
+    {
+      "id": "877e558d-9165-4ea7-a69a-27ef9dec72cd",
+      "name": "Phase 2: lib/notion.ts 데이터 레이어 구현",
+      "description": "Notion API와 통신하는 데이터 레이어를 신규 작성한다. Project/Career/Skill 타입, Zod 스키마, lazy Client 초기화, 응답 파싱 헬퍼, 필터/정렬 빌더, 6개 export 함수(getProjects, getProjectBySlug, getProjectNeighbors, getCareers, getSkills, getProjectCount)를 PRD.md의 타입 정의/Zod 스키마/함수 시그니처를 그대로 따라 구현한다. 모든 함수는 실패 시 logger.error로 기록 후 빈 배열 또는 null로 fallback하여 DB가 비어있거나 키가 없는 상태에서도 호출자(빌드 프로세스 포함)가 죽지 않게 한다. Phase 2(공통 모듈)와 Phase 3(페이지)의 경계를 명확히 하기 위해, 프로젝트 상세 페이지의 이전/다음 네비게이션에 필요한 데이터 가공 로직(order 기준 인접 프로젝트 검색)도 이 레이어에 getProjectNeighbors(slug)로 포함시킨다 — 페이지 파일에는 데이터 가공 로직을 두지 않는다.",
+      "notes": "getEnv() 호출은 getClient() 내부 한 곳으로 모음 — lib/env.ts의 lazy 설계 의도 유지. Zod 검증 실패도 catch에서 잡아 fallback 처리. JSDoc 주석을 각 export 함수에 추가(CLAUDE.md 코딩 스타일 규칙).",
+      "status": "pending",
+      "dependencies": [],
+      "createdAt": "2026-06-28T09:23:27.842Z",
+      "updatedAt": "2026-06-28T09:27:24.013Z",
+      "relatedFiles": [
+        {
+          "path": "lib/notion.ts",
+          "type": "CREATE",
+          "description": "Notion 데이터 레이어 신규 작성"
+        },
+        {
+          "path": "lib/env.ts",
+          "type": "DEPENDENCY",
+          "description": "getEnv() lazy parse 함수 재사용"
+        },
+        {
+          "path": "lib/logger.ts",
+          "type": "DEPENDENCY",
+          "description": "logger.info/error 재사용"
+        },
+        {
+          "path": "docs/PRD.md",
+          "type": "REFERENCE",
+          "description": "타입/Zod스키마/함수시그니처/파싱예시 스펙 원본"
+        }
+      ],
+      "implementationGuide": "pseudocode:\n1. import { Client } from '@notionhq/client', { z } from 'zod', { getEnv } from '@/lib/env', { logger } from '@/lib/logger'\n2. export interface Project/Career/Skill, GetProjectsOptions/GetCareersOptions/GetSkillsOptions 정의 (PRD '데이터 플로우 및 타입 정의' 섹션 그대로)\n3. const ProjectSchema/CareerSchema/SkillSchema = z.object({...}) (PRD 동일 섹션 그대로)\n4. let cachedClient: Client | null = null; function getClient(): Client { if (!cachedClient) { const env = getEnv(); cachedClient = new Client({ auth: env.NOTION_API_KEY }) } return cachedClient }\n5. function parseProjectPage(page): Project { properties 접근 패턴(title[0]?.plain_text, rich_text.map(...).join(''), multi_select.map(s=>s.name), files[0]?.file?.url ?? null, url, checkbox, select.name, number, new Date(page.created_time)) }\n6. function parseCareerPage(page): Career { company=title, role=rich_text 또는 text, startDate=date.start, endDate=date.end ?? null, description=rich_text, order=number }\n7. function parseSkillPage(page): Skill { name=title, category=select.name, proficiency=number, order=number }\n8. function buildProjectFilter(options), buildProjectSorts(options) 등 헬퍼로 filter/sorts 객체 구성, 복수 조건은 { and: [...] }\n9. export async function getProjects(options?) { try { logger.info(...); const client=getClient(); const res = await client.databases.query({ database_id: getEnv().NOTION_PROJECTS_DB_ID, filter: buildProjectFilter(options), sorts: buildProjectSorts(options) }); const projects = res.results.map(parseProjectPage).map(p=>ProjectSchema.parse(p)); logger.info(count); return projects } catch(e) { logger.error(...); return [] } }\n10. export async function getProjectBySlug(slug) { try { ... filter: { property: 'Slug', rich_text: { equals: slug } } ...; if (res.results.length === 0) return null; return ProjectSchema.parse(parseProjectPage(res.results[0])) } catch(e) { logger.error(...); return null } }\n11. export async function getProjectNeighbors(slug): Promise<{ prev: Project | null, next: Project | null }> { try { const all = await getProjects({ orderBy: 'Order' }); const idx = all.findIndex(p => p.slug === slug); if (idx === -1) return { prev: null, next: null }; return { prev: idx > 0 ? all[idx-1] : null, next: idx < all.length-1 ? all[idx+1] : null } } catch(e) { logger.error(...); return { prev: null, next: null } } } — 이 함수가 prev/next 계산 로직 전체를 캡슐화하여 app/projects/[slug]/page.tsx는 이 함수 호출 결과만 props로 전달.\n12. export async function getCareers(options?), getSkills(options?) 동일 패턴\n13. export async function getProjectCount(options?) { const projects = await getProjects(options); return projects.length }",
+      "verificationCriteria": "npx tsc --noEmit 통과. lib/notion.ts가 Project/Career/Skill 타입과 getProjects/getProjectBySlug/getProjectNeighbors/getCareers/getSkills/getProjectCount 6개 함수를 export한다. .env.local 값이 비어있는 상태에서 이 함수들을 호출하는 코드가 예외를 throw하지 않고 []/null/{prev:null,next:null}을 반환한다.",
+      "analysisResult": "ROADMAP.md의 Phase 1→2→3→4 순서를 그대로 따라 Notion CMS 기반 포트폴리오 사이트를 구현한다. lib/notion.ts(데이터 레이어, lazy env 검증, Zod 검증, fallback 처리) → components/portfolio/(8~9개 프레젠테이션 컴포넌트, 기존 ui/ 재사용) → app/ 페이지 4개(신규 3개 + page.tsx 수정) 순서로 의존성이 흐른다. Notion DB 생성/키 발급/.env.local 입력/실데이터 검증/Vercel 배포는 사용자가 별도 진행하므로 작업 범위에서 제외하고, 코드는 DB 없이도 타입체크/빌드/lint를 통과하고 데이터 부재 시 graceful fallback으로 동작해야 한다. PRD.md/ROADMAP.md에 정의된 타입, Zod 스키마, 함수 시그니처, 페이지 코드 예시를 그대로 따르며 재설계하지 않는다."
+    },
+    {
+      "id": "885a975c-8a36-434f-b9e4-1cbf635c757b",
+      "name": "Phase 2: components/portfolio/ 기초 컴포넌트 구현 (TechStackBadges, SkillBadge)",
+      "description": "가장 의존성이 적은 두 개의 기초 컴포넌트를 먼저 구현한다. TechStackBadges는 기술 스택 문자열 배열을 Badge로 나열하고, SkillBadge는 단일 스킬의 이름과 숙련도(proficiency)를 Badge로 표시한다.",
+      "notes": "서버 컴포넌트로 작성('use client' 불필요, 클라이언트 hook 미사용). lib/notion.ts의 Skill 타입을 import.",
+      "status": "pending",
+      "dependencies": [
+        {
+          "taskId": "877e558d-9165-4ea7-a69a-27ef9dec72cd"
+        }
+      ],
+      "createdAt": "2026-06-28T09:23:27.842Z",
+      "updatedAt": "2026-06-28T09:23:27.842Z",
+      "relatedFiles": [
+        {
+          "path": "components/portfolio/TechStackBadges.tsx",
+          "type": "CREATE",
+          "description": "기술스택 뱃지 나열"
+        },
+        {
+          "path": "components/portfolio/SkillBadge.tsx",
+          "type": "CREATE",
+          "description": "스킬 단일 뱃지"
+        },
+        {
+          "path": "components/ui/badge.tsx",
+          "type": "DEPENDENCY",
+          "description": "Badge 컴포넌트 재사용"
+        },
+        {
+          "path": "lib/notion.ts",
+          "type": "DEPENDENCY",
+          "description": "Skill 타입 import"
+        }
+      ],
+      "implementationGuide": "pseudocode:\n1. components/portfolio/TechStackBadges.tsx: props { techStack: string[] }, <div className=\"flex flex-wrap gap-2\">{techStack.map(tech => <Badge key={tech} variant=\"secondary\">{tech}</Badge>)}</div>\n2. components/portfolio/SkillBadge.tsx: props { skill: Skill }, Badge 안에 skill.name과 skill.proficiency를 함께 표시(예: `${skill.name} ${skill.proficiency}/10`)",
+      "verificationCriteria": "npx tsc --noEmit 통과, 두 컴포넌트가 Badge를 올바르게 렌더링하며 props 타입이 lib/notion.ts의 타입과 일치한다.",
+      "analysisResult": "ROADMAP.md의 Phase 1→2→3→4 순서를 그대로 따라 Notion CMS 기반 포트폴리오 사이트를 구현한다. lib/notion.ts(데이터 레이어, lazy env 검증, Zod 검증, fallback 처리) → components/portfolio/(8~9개 프레젠테이션 컴포넌트, 기존 ui/ 재사용) → app/ 페이지 4개(신규 3개 + page.tsx 수정) 순서로 의존성이 흐른다. Notion DB 생성/키 발급/.env.local 입력/실데이터 검증/Vercel 배포는 사용자가 별도 진행하므로 작업 범위에서 제외하고, 코드는 DB 없이도 타입체크/빌드/lint를 통과하고 데이터 부재 시 graceful fallback으로 동작해야 한다. PRD.md/ROADMAP.md에 정의된 타입, Zod 스키마, 함수 시그니처, 페이지 코드 예시를 그대로 따르며 재설계하지 않는다."
+    },
+    {
+      "id": "419fa247-2dab-4289-9d43-01ec2b53bedd",
+      "name": "Phase 2: components/portfolio/ 카드 컴포넌트 구현 (ProjectCard, CareerItem)",
+      "description": "프로젝트 목록과 경력 타임라인에서 각각 사용할 카드형 컴포넌트를 구현한다. ProjectCard는 Card+Badge+TechStackBadges를 조합해 프로젝트 1건을 표시하고 /projects/[slug]로 링크한다. CareerItem은 Card로 경력 1건(회사, 직급, 기간, 설명)을 표시한다.",
+      "notes": "next/image 사용 시 next.config.ts의 remotePatterns(Phase 1에서 등록됨)에 의존. cn() 사용해 className 조건부 병합.",
+      "status": "pending",
+      "dependencies": [
+        {
+          "taskId": "877e558d-9165-4ea7-a69a-27ef9dec72cd"
+        },
+        {
+          "taskId": "722fdccd-d18c-466f-8047-6354279697d0"
+        },
+        {
+          "taskId": "885a975c-8a36-434f-b9e4-1cbf635c757b"
+        }
+      ],
+      "createdAt": "2026-06-28T09:23:27.842Z",
+      "updatedAt": "2026-06-28T09:23:27.842Z",
+      "relatedFiles": [
+        {
+          "path": "components/portfolio/ProjectCard.tsx",
+          "type": "CREATE",
+          "description": "프로젝트 카드"
+        },
+        {
+          "path": "components/portfolio/CareerItem.tsx",
+          "type": "CREATE",
+          "description": "경력 단일 항목 카드"
+        },
+        {
+          "path": "components/ui/card.tsx",
+          "type": "DEPENDENCY",
+          "description": "Card 계열 컴포넌트 재사용"
+        },
+        {
+          "path": "components/portfolio/TechStackBadges.tsx",
+          "type": "DEPENDENCY",
+          "description": "ProjectCard 내부에서 사용"
+        },
+        {
+          "path": "lib/utils.ts",
+          "type": "DEPENDENCY",
+          "description": "cn() 재사용"
+        }
+      ],
+      "implementationGuide": "pseudocode:\n1. ProjectCard.tsx: props { project: Project }, <Link href={`/projects/${project.slug}`}><Card>{project.thumbnailUrl && <Image fill .../>}<CardHeader><CardTitle>{project.name}</CardTitle></CardHeader><CardContent><p>{project.description.slice(0,100)}...</p><TechStackBadges techStack={project.techStack} /></CardContent></Card></Link>\n2. CareerItem.tsx: props { career: Career }, <Card><CardContent><h3>{career.company}</h3><p>{career.role}</p><p>{formatDate(career.startDate)} ~ {career.endDate ? formatDate(career.endDate) : '현재 근무 중'}</p><p>{career.description}</p></CardContent></Card>",
+      "verificationCriteria": "npx tsc --noEmit 통과. ProjectCard 클릭 시 올바른 slug 경로로 링크가 생성되고, CareerItem이 endDate null일 때 '현재 근무 중'을 표시한다.",
+      "analysisResult": "ROADMAP.md의 Phase 1→2→3→4 순서를 그대로 따라 Notion CMS 기반 포트폴리오 사이트를 구현한다. lib/notion.ts(데이터 레이어, lazy env 검증, Zod 검증, fallback 처리) → components/portfolio/(8~9개 프레젠테이션 컴포넌트, 기존 ui/ 재사용) → app/ 페이지 4개(신규 3개 + page.tsx 수정) 순서로 의존성이 흐른다. Notion DB 생성/키 발급/.env.local 입력/실데이터 검증/Vercel 배포는 사용자가 별도 진행하므로 작업 범위에서 제외하고, 코드는 DB 없이도 타입체크/빌드/lint를 통과하고 데이터 부재 시 graceful fallback으로 동작해야 한다. PRD.md/ROADMAP.md에 정의된 타입, Zod 스키마, 함수 시그니처, 페이지 코드 예시를 그대로 따르며 재설계하지 않는다."
+    },
+    {
+      "id": "6ba097e4-29eb-4a31-a83d-c9df2e8b1e47",
+      "name": "Phase 2: components/portfolio/ 그룹 컴포넌트 구현 (SkillCategory, SkillsGrid, CareerTimeline)",
+      "description": "개별 항목 컴포넌트를 묶어 그룹 단위로 렌더링하는 래퍼 컴포넌트 3개를 구현한다. SkillCategory는 한 카테고리에 속한 SkillBadge들을 묶고, SkillsGrid는 Skill 배열을 category로 그룹화해 SkillCategory들을 배치한다. CareerTimeline은 Career 배열을 CareerItem들로 매핑한다.",
+      "notes": "SkillsGrid의 그룹화 로직(category별 reduce)이 이 컴포넌트의 핵심 책임. 정렬은 PRD F005 명세(카테고리명 ABC순 → 숙련도 내림차순)를 따름.",
+      "status": "pending",
+      "dependencies": [
+        {
+          "taskId": "885a975c-8a36-434f-b9e4-1cbf635c757b"
+        },
+        {
+          "taskId": "419fa247-2dab-4289-9d43-01ec2b53bedd"
+        }
+      ],
+      "createdAt": "2026-06-28T09:23:27.842Z",
+      "updatedAt": "2026-06-28T09:23:27.842Z",
+      "relatedFiles": [
+        {
+          "path": "components/portfolio/SkillCategory.tsx",
+          "type": "CREATE",
+          "description": "스킬 카테고리 섹션"
+        },
+        {
+          "path": "components/portfolio/SkillsGrid.tsx",
+          "type": "CREATE",
+          "description": "스킬 전체 그리드(카테고리 그룹화)"
+        },
+        {
+          "path": "components/portfolio/CareerTimeline.tsx",
+          "type": "CREATE",
+          "description": "경력 타임라인 래퍼"
+        },
+        {
+          "path": "components/portfolio/SkillBadge.tsx",
+          "type": "DEPENDENCY",
+          "description": "SkillCategory 내부에서 사용"
+        },
+        {
+          "path": "components/portfolio/CareerItem.tsx",
+          "type": "DEPENDENCY",
+          "description": "CareerTimeline 내부에서 사용"
+        }
+      ],
+      "implementationGuide": "pseudocode:\n1. SkillCategory.tsx: props { category: string, skills: Skill[] }, <section><h3>{category}</h3><div className=\"flex flex-wrap gap-2\">{skills.map(s => <SkillBadge key={s.id} skill={s} />)}</div></section>\n2. SkillsGrid.tsx: props { skills: Skill[] }, skills를 category 기준으로 reduce/groupBy하여 Record<string, Skill[]> 생성 후 Object.entries로 SkillCategory map 렌더링\n3. CareerTimeline.tsx: props { careers: Career[] }, <div className=\"space-y-4\">{careers.map(c => <CareerItem key={c.id} career={c} />)}</div>",
+      "verificationCriteria": "npx tsc --noEmit 통과. SkillsGrid에 카테고리가 다른 Skill 여러 개를 넣으면 카테고리별로 올바르게 그룹화되어 렌더링된다.",
+      "analysisResult": "ROADMAP.md의 Phase 1→2→3→4 순서를 그대로 따라 Notion CMS 기반 포트폴리오 사이트를 구현한다. lib/notion.ts(데이터 레이어, lazy env 검증, Zod 검증, fallback 처리) → components/portfolio/(8~9개 프레젠테이션 컴포넌트, 기존 ui/ 재사용) → app/ 페이지 4개(신규 3개 + page.tsx 수정) 순서로 의존성이 흐른다. Notion DB 생성/키 발급/.env.local 입력/실데이터 검증/Vercel 배포는 사용자가 별도 진행하므로 작업 범위에서 제외하고, 코드는 DB 없이도 타입체크/빌드/lint를 통과하고 데이터 부재 시 graceful fallback으로 동작해야 한다. PRD.md/ROADMAP.md에 정의된 타입, Zod 스키마, 함수 시그니처, 페이지 코드 예시를 그대로 따르며 재설계하지 않는다."
+    },
+    {
+      "id": "6e8711c5-1d77-48a6-bb0a-07e9fad9347c",
+      "name": "Phase 2: components/portfolio/ 상세/네비게이션 컴포넌트 구현 (ProjectDetail, ProjectNavigation)",
+      "description": "프로젝트 상세 페이지에서 사용할 ProjectDetail(전체 정보 표시)과 ProjectNavigation(이전/다음 프로젝트 링크)을 구현한다.",
+      "notes": "ProjectNavigation은 prev/next 계산 로직을 직접 갖지 않고 페이지(app/projects/[slug]/page.tsx)에서 계산된 결과를 props로만 받음 — 책임 분리.",
+      "status": "pending",
+      "dependencies": [
+        {
+          "taskId": "419fa247-2dab-4289-9d43-01ec2b53bedd"
+        }
+      ],
+      "createdAt": "2026-06-28T09:23:27.842Z",
+      "updatedAt": "2026-06-28T09:23:27.842Z",
+      "relatedFiles": [
+        {
+          "path": "components/portfolio/ProjectDetail.tsx",
+          "type": "CREATE",
+          "description": "프로젝트 상세 정보"
+        },
+        {
+          "path": "components/portfolio/ProjectNavigation.tsx",
+          "type": "CREATE",
+          "description": "이전/다음 프로젝트 링크"
+        },
+        {
+          "path": "components/ui/button.tsx",
+          "type": "DEPENDENCY",
+          "description": "GitHub/Demo 버튼"
+        },
+        {
+          "path": "components/portfolio/TechStackBadges.tsx",
+          "type": "DEPENDENCY",
+          "description": "ProjectDetail 내부에서 사용"
+        }
+      ],
+      "implementationGuide": "pseudocode:\n1. ProjectDetail.tsx: props { project: Project }, <Card><CardContent>{project.thumbnailUrl && <Image .../>}<h1>{project.name}</h1><p>{project.description}</p><TechStackBadges techStack={project.techStack} />{project.githubUrl && <Button asChild><a href={project.githubUrl} target=\"_blank\">GitHub</a></Button>}{project.demoUrl && <Button variant=\"outline\" asChild><a href={project.demoUrl} target=\"_blank\">Demo</a></Button>}</CardContent></Card>\n2. ProjectNavigation.tsx: props { prev: Project | null, next: Project | null }, <div className=\"flex justify-between\">{prev && <Link href={`/projects/${prev.slug}`}>← {prev.name}</Link>}{next && <Link href={`/projects/${next.slug}`}>{next.name} →</Link>}</div>",
+      "verificationCriteria": "npx tsc --noEmit 통과. githubUrl/demoUrl이 null일 때 해당 버튼이 렌더링되지 않는다. prev/next가 null일 때 해당 방향 링크가 렌더링되지 않는다.",
+      "analysisResult": "ROADMAP.md의 Phase 1→2→3→4 순서를 그대로 따라 Notion CMS 기반 포트폴리오 사이트를 구현한다. lib/notion.ts(데이터 레이어, lazy env 검증, Zod 검증, fallback 처리) → components/portfolio/(8~9개 프레젠테이션 컴포넌트, 기존 ui/ 재사용) → app/ 페이지 4개(신규 3개 + page.tsx 수정) 순서로 의존성이 흐른다. Notion DB 생성/키 발급/.env.local 입력/실데이터 검증/Vercel 배포는 사용자가 별도 진행하므로 작업 범위에서 제외하고, 코드는 DB 없이도 타입체크/빌드/lint를 통과하고 데이터 부재 시 graceful fallback으로 동작해야 한다. PRD.md/ROADMAP.md에 정의된 타입, Zod 스키마, 함수 시그니처, 페이지 코드 예시를 그대로 따르며 재설계하지 않는다."
+    },
+    {
+      "id": "3ed85412-5607-4e14-b2f2-da314da71e59",
+      "name": "Phase 3: app/projects/page.tsx 및 app/projects/[slug]/page.tsx 구현",
+      "description": "프로젝트 목록 페이지와 상세 페이지를 신규 작성한다. 목록은 Active 상태 프로젝트를 Order 순으로 그리드 표시하고, 상세는 slug로 단일 프로젝트를 조회해 ProjectDetail+ProjectNavigation을 렌더링하며 존재하지 않으면 404 처리한다. prev/next 계산은 lib/notion.ts의 getProjectNeighbors(slug)를 호출한 결과만 사용하고, 페이지 파일 내부에서 직접 findIndex 등으로 인접 프로젝트를 계산하지 않는다(Phase 2/3 책임 분리 — 데이터 가공은 공통 모듈, 페이지는 조립만). Next.js 16의 동적 라우트 params가 Promise인 점을 고려해 await params 패턴을 적용한다.",
+      "notes": "params Promise 처리는 npm run dev 실행 시 타입/런타임 에러로 즉시 재확인하여 필요시 조정. generateStaticParams 실패(DB 없음) 시 빈 배열 반환되어 빌드가 깨지지 않음(lib/notion.ts의 fallback 설계에 의존). prev/next 계산 책임은 lib/notion.ts의 getProjectNeighbors로 이전됨(Phase 2/3 경계 명확화).",
+      "status": "pending",
+      "dependencies": [
+        {
+          "taskId": "419fa247-2dab-4289-9d43-01ec2b53bedd"
+        },
+        {
+          "taskId": "6e8711c5-1d77-48a6-bb0a-07e9fad9347c"
+        }
+      ],
+      "createdAt": "2026-06-28T09:23:27.842Z",
+      "updatedAt": "2026-06-28T09:27:39.437Z",
+      "relatedFiles": [
+        {
+          "path": "app/projects/page.tsx",
+          "type": "CREATE",
+          "description": "프로젝트 목록 페이지"
+        },
+        {
+          "path": "app/projects/[slug]/page.tsx",
+          "type": "CREATE",
+          "description": "프로젝트 상세 페이지"
+        },
+        {
+          "path": "lib/notion.ts",
+          "type": "DEPENDENCY",
+          "description": "getProjects, getProjectBySlug, getProjectNeighbors 호출"
+        },
+        {
+          "path": "components/portfolio/ProjectCard.tsx",
+          "type": "DEPENDENCY",
+          "description": "목록 페이지에서 사용"
+        },
+        {
+          "path": "components/portfolio/ProjectDetail.tsx",
+          "type": "DEPENDENCY",
+          "description": "상세 페이지에서 사용"
+        },
+        {
+          "path": "components/portfolio/ProjectNavigation.tsx",
+          "type": "DEPENDENCY",
+          "description": "상세 페이지에서 사용"
+        }
+      ],
+      "implementationGuide": "pseudocode:\n1. app/projects/page.tsx: export const revalidate=3600; export const metadata={title:'Projects'}; async function ProjectsPage(){ try{ const projects = await getProjects({status:'Active', orderBy:'Order'}); return <main><h1>프로젝트</h1><div className=\"grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6\">{projects.map(p=><ProjectCard key={p.id} project={p}/>)}</div></main> }catch(e){logger.error(...); return <div>프로젝트를 불러올 수 없습니다.</div>} }\n2. app/projects/[slug]/page.tsx: export const revalidate=3600; export async function generateStaticParams(){ const projects=await getProjects(); return projects.map(p=>({slug:p.slug})) } export async function generateMetadata({params}:{params:Promise<{slug:string}>}){ const {slug}=await params; const project=await getProjectBySlug(slug); if(!project) return {}; return {title:project.name, description:project.description} } export default async function ProjectDetailPage({params}:{params:Promise<{slug:string}>}){ const {slug}=await params; try{ const project = await getProjectBySlug(slug); if(!project) notFound(); const { prev, next } = await getProjectNeighbors(slug); return <main><ProjectDetail project={project}/><ProjectNavigation prev={prev} next={next}/><Link href=\"/projects\">← 모든 프로젝트로</Link></main> }catch(e){ logger.error(...); notFound() } } — 페이지는 getProjectNeighbors 호출 결과를 그대로 props로 전달할 뿐, 인덱스 계산이나 정렬 로직을 직접 수행하지 않음.",
+      "verificationCriteria": "npm run build 성공(DB 값 없어도 실패하지 않음). npm run dev로 /projects 접속 시 200, 존재하지 않는 slug 접속 시 404가 렌더링된다.",
+      "analysisResult": "ROADMAP.md의 Phase 1→2→3→4 순서를 그대로 따라 Notion CMS 기반 포트폴리오 사이트를 구현한다. lib/notion.ts(데이터 레이어, lazy env 검증, Zod 검증, fallback 처리) → components/portfolio/(8~9개 프레젠테이션 컴포넌트, 기존 ui/ 재사용) → app/ 페이지 4개(신규 3개 + page.tsx 수정) 순서로 의존성이 흐른다. Notion DB 생성/키 발급/.env.local 입력/실데이터 검증/Vercel 배포는 사용자가 별도 진행하므로 작업 범위에서 제외하고, 코드는 DB 없이도 타입체크/빌드/lint를 통과하고 데이터 부재 시 graceful fallback으로 동작해야 한다. PRD.md/ROADMAP.md에 정의된 타입, Zod 스키마, 함수 시그니처, 페이지 코드 예시를 그대로 따르며 재설계하지 않는다."
+    },
+    {
+      "id": "58ef3847-863e-4710-95ae-8878f376a260",
+      "name": "Phase 3: app/career/page.tsx 구현",
+      "description": "경력 타임라인 페이지를 신규 작성한다. Career 데이터를 시작일 내림차순(최신 먼저)으로 조회해 CareerTimeline으로 렌더링한다.",
+      "notes": "PRD Phase 6.1 코드 그대로.",
+      "status": "pending",
+      "dependencies": [
+        {
+          "taskId": "6ba097e4-29eb-4a31-a83d-c9df2e8b1e47"
+        }
+      ],
+      "createdAt": "2026-06-28T09:23:27.842Z",
+      "updatedAt": "2026-06-28T09:23:27.842Z",
+      "relatedFiles": [
+        {
+          "path": "app/career/page.tsx",
+          "type": "CREATE",
+          "description": "경력 타임라인 페이지"
+        },
+        {
+          "path": "lib/notion.ts",
+          "type": "DEPENDENCY",
+          "description": "getCareers 호출"
+        },
+        {
+          "path": "components/portfolio/CareerTimeline.tsx",
+          "type": "DEPENDENCY",
+          "description": "페이지에서 사용"
+        }
+      ],
+      "implementationGuide": "pseudocode:\nexport const revalidate=3600; export const metadata={title:'Career'}; async function CareerPage(){ try{ const careers = await getCareers({orderBy:'StartDate', ascending:false}); return <main><h1>경력</h1><CareerTimeline careers={careers}/></main> }catch(e){ logger.error(...); return <div>경력 정보를 불러올 수 없습니다.</div> } }",
+      "verificationCriteria": "npm run build 성공. npm run dev로 /career 접속 시 200 응답, 헤더의 '경력' 링크 클릭 시 정상 이동.",
+      "analysisResult": "ROADMAP.md의 Phase 1→2→3→4 순서를 그대로 따라 Notion CMS 기반 포트폴리오 사이트를 구현한다. lib/notion.ts(데이터 레이어, lazy env 검증, Zod 검증, fallback 처리) → components/portfolio/(8~9개 프레젠테이션 컴포넌트, 기존 ui/ 재사용) → app/ 페이지 4개(신규 3개 + page.tsx 수정) 순서로 의존성이 흐른다. Notion DB 생성/키 발급/.env.local 입력/실데이터 검증/Vercel 배포는 사용자가 별도 진행하므로 작업 범위에서 제외하고, 코드는 DB 없이도 타입체크/빌드/lint를 통과하고 데이터 부재 시 graceful fallback으로 동작해야 한다. PRD.md/ROADMAP.md에 정의된 타입, Zod 스키마, 함수 시그니처, 페이지 코드 예시를 그대로 따르며 재설계하지 않는다."
+    },
+    {
+      "id": "f108f06f-9cc9-47ff-a304-0a7a121f102f",
+      "name": "Phase 3: app/page.tsx 수정 (Featured 프로젝트 + 기술 스택 섹션 추가)",
+      "description": "기존 Hero 섹션은 그대로 유지하면서, 그 아래에 Featured 프로젝트 섹션과 핵심 기술 스택 섹션을 추가한다. 두 데이터를 Promise.all로 병렬 페칭하고 ISR(revalidate=3600)을 적용한다.",
+      "notes": "기존 '프로젝트 보기' CTA가 Hero에 이미 있으므로 Featured 섹션에는 중복 CTA를 넣지 않거나 '모든 프로젝트 보기' 링크만 섹션 하단에 추가. 함수를 동기에서 async로 전환.",
+      "status": "pending",
+      "dependencies": [
+        {
+          "taskId": "3ed85412-5607-4e14-b2f2-da314da71e59"
+        },
+        {
+          "taskId": "6ba097e4-29eb-4a31-a83d-c9df2e8b1e47"
+        }
+      ],
+      "createdAt": "2026-06-28T09:23:27.842Z",
+      "updatedAt": "2026-06-28T09:23:27.842Z",
+      "relatedFiles": [
+        {
+          "path": "app/page.tsx",
+          "type": "TO_MODIFY",
+          "description": "Hero 유지 + Featured/Skills 섹션 추가, async 전환, revalidate 추가"
+        },
+        {
+          "path": "lib/notion.ts",
+          "type": "DEPENDENCY",
+          "description": "getProjects, getSkills 호출"
+        },
+        {
+          "path": "components/portfolio/ProjectCard.tsx",
+          "type": "DEPENDENCY",
+          "description": "Featured 섹션에서 사용"
+        },
+        {
+          "path": "components/portfolio/SkillsGrid.tsx",
+          "type": "DEPENDENCY",
+          "description": "기술 스택 섹션에서 사용"
+        }
+      ],
+      "implementationGuide": "pseudocode:\nexport const revalidate=3600;\nasync function HomePage(){\n  try {\n    const [featuredProjects, topSkills] = await Promise.all([\n      getProjects({featured:true, limit:5}),\n      getSkills({minProficiency:8})\n    ]);\n    return (\n      <>\n        {/* 기존 Hero 블록 그대로 유지 */}\n        <section>{featuredProjects.map(p=><ProjectCard key={p.id} project={p}/>)}</section>\n        <section><SkillsGrid skills={topSkills}/></section>\n      </>\n    )\n  } catch(e) { logger.error(...); /* 기존 Hero는 보여주고 섹션만 fallback, 또는 전체 fallback */ }\n}",
+      "verificationCriteria": "npm run build 성공. 기존 Hero 텍스트('안녕하세요')와 버튼이 그대로 보존되어 있다. npm run dev로 / 접속 시 200 응답하며 DB 값이 비어있어도 에러 화면 없이 정상 렌더링된다(빈 Featured/Skills 섹션 또는 fallback UI).",
+      "analysisResult": "ROADMAP.md의 Phase 1→2→3→4 순서를 그대로 따라 Notion CMS 기반 포트폴리오 사이트를 구현한다. lib/notion.ts(데이터 레이어, lazy env 검증, Zod 검증, fallback 처리) → components/portfolio/(8~9개 프레젠테이션 컴포넌트, 기존 ui/ 재사용) → app/ 페이지 4개(신규 3개 + page.tsx 수정) 순서로 의존성이 흐른다. Notion DB 생성/키 발급/.env.local 입력/실데이터 검증/Vercel 배포는 사용자가 별도 진행하므로 작업 범위에서 제외하고, 코드는 DB 없이도 타입체크/빌드/lint를 통과하고 데이터 부재 시 graceful fallback으로 동작해야 한다. PRD.md/ROADMAP.md에 정의된 타입, Zod 스키마, 함수 시그니처, 페이지 코드 예시를 그대로 따르며 재설계하지 않는다."
+    },
+    {
+      "id": "94737d79-c788-409d-afac-501d65c8add5",
+      "name": "Phase 4: 전체 빌드/lint 검증 및 사용자 액션 안내",
+      "description": "전체 구현을 마친 뒤 npm run lint, npm run build, npm start로 프로덕션 모드까지 검증하고, 헤더의 3개 네비게이션 링크가 모두 정상 작동하는지 확인한다. 이후 사용자가 별도로 진행해야 할 작업(Notion DB 생성, API 키 발급, .env.local 입력, 실데이터 검증, Vercel 배포)을 안내한다.",
+      "notes": "이 task는 코드 변경이 아닌 검증 및 안내가 목적. 실데이터 검증과 배포는 명시적으로 작업 범위 제외.",
+      "status": "pending",
+      "dependencies": [
+        {
+          "taskId": "58ef3847-863e-4710-95ae-8878f376a260"
+        },
+        {
+          "taskId": "f108f06f-9cc9-47ff-a304-0a7a121f102f"
+        }
+      ],
+      "createdAt": "2026-06-28T09:23:27.842Z",
+      "updatedAt": "2026-06-28T09:23:27.842Z",
+      "relatedFiles": [
+        {
+          "path": "package.json",
+          "type": "REFERENCE",
+          "description": "lint/build/start 스크립트 확인"
+        }
+      ],
+      "implementationGuide": "pseudocode:\n1. npm run lint 실행, 위반 사항 0건 확인\n2. npm run build 실행, 빌드 성공 및 소요시간 확인(DB 값 없는 상태에서도 성공해야 함)\n3. npm start로 프로덕션 서버 기동 후 /, /projects, /career, /projects/[임의 slug] 접속해 200/404 응답 확인\n4. grep으로 모든 페이지 파일에 export const revalidate = 3600이 존재하는지 점검\n5. grep으로 app/page.tsx에 Promise.all 패턴이 적용되었는지 점검\n6. 사용자에게 남은 작업(Notion DB 3개 생성, Integration 발급, .env.local 값 입력, Vercel 배포, 환경변수 등록) 안내",
+      "verificationCriteria": "npm run lint 0 에러, npm run build 성공, npm start 후 4개 라우트(/, /projects, /career, /projects/[slug])가 의도한 응답(200 또는 404)을 반환한다.",
+      "analysisResult": "ROADMAP.md의 Phase 1→2→3→4 순서를 그대로 따라 Notion CMS 기반 포트폴리오 사이트를 구현한다. lib/notion.ts(데이터 레이어, lazy env 검증, Zod 검증, fallback 처리) → components/portfolio/(8~9개 프레젠테이션 컴포넌트, 기존 ui/ 재사용) → app/ 페이지 4개(신규 3개 + page.tsx 수정) 순서로 의존성이 흐른다. Notion DB 생성/키 발급/.env.local 입력/실데이터 검증/Vercel 배포는 사용자가 별도 진행하므로 작업 범위에서 제외하고, 코드는 DB 없이도 타입체크/빌드/lint를 통과하고 데이터 부재 시 graceful fallback으로 동작해야 한다. PRD.md/ROADMAP.md에 정의된 타입, Zod 스키마, 함수 시그니처, 페이지 코드 예시를 그대로 따르며 재설계하지 않는다."
+    }
+  ]
+}
