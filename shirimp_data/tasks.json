@@ -29,31 +29,26 @@
       "id": "877e558d-9165-4ea7-a69a-27ef9dec72cd",
       "name": "Phase 2: lib/notion.ts 데이터 레이어 구현",
       "description": "Notion API와 통신하는 데이터 레이어를 신규 작성한다. Project/Career/Skill 타입, Zod 스키마, lazy Client 초기화, 응답 파싱 헬퍼, 필터/정렬 빌더, 6개 export 함수(getProjects, getProjectBySlug, getProjectNeighbors, getCareers, getSkills, getProjectCount)를 PRD.md의 타입 정의/Zod 스키마/함수 시그니처를 그대로 따라 구현한다. 모든 함수는 실패 시 logger.error로 기록 후 빈 배열 또는 null로 fallback하여 DB가 비어있거나 키가 없는 상태에서도 호출자(빌드 프로세스 포함)가 죽지 않게 한다. Phase 2(공통 모듈)와 Phase 3(페이지)의 경계를 명확히 하기 위해, 프로젝트 상세 페이지의 이전/다음 네비게이션에 필요한 데이터 가공 로직(order 기준 인접 프로젝트 검색)도 이 레이어에 getProjectNeighbors(slug)로 포함시킨다 — 페이지 파일에는 데이터 가공 로직을 두지 않는다.",
-      "notes": "getEnv() 호출은 getClient() 내부 한 곳으로 모음 — lib/env.ts의 lazy 설계 의도 유지. Zod 검증 실패도 catch에서 잡아 fallback 처리. JSDoc 주석을 각 export 함수에 추가(CLAUDE.md 코딩 스타일 규칙).",
+      "notes": "✅ 완료됨 (2026-06-28): HTTP REST API 기반 구현, 모든 6개 함수 동작 확인, 프로덕션 빌드 성공, test-db 페이지로 DB 연동 검증 가능",
       "status": "pending",
       "dependencies": [],
       "createdAt": "2026-06-28T09:23:27.842Z",
-      "updatedAt": "2026-06-28T09:27:24.013Z",
+      "updatedAt": "2026-06-28T14:03:26.049Z",
       "relatedFiles": [
         {
           "path": "lib/notion.ts",
           "type": "CREATE",
-          "description": "Notion 데이터 레이어 신규 작성"
+          "description": "HTTP REST API 기반 Notion 데이터 레이어 (getProjects, getProjectBySlug, getProjectNeighbors, getCareers, getSkills, getProjectCount)"
         },
         {
           "path": "lib/env.ts",
-          "type": "DEPENDENCY",
-          "description": "getEnv() lazy parse 함수 재사용"
-        },
-        {
-          "path": "lib/logger.ts",
-          "type": "DEPENDENCY",
-          "description": "logger.info/error 재사용"
-        },
-        {
-          "path": "docs/PRD.md",
           "type": "REFERENCE",
-          "description": "타입/Zod스키마/함수시그니처/파싱예시 스펙 원본"
+          "description": "환경변수 Zod 검증"
+        },
+        {
+          "path": "app/test-db/page.tsx",
+          "type": "CREATE",
+          "description": "DB 연동 테스트 페이지 (http://localhost:3000/test-db)"
         }
       ],
       "implementationGuide": "pseudocode:\n1. import { Client } from '@notionhq/client', { z } from 'zod', { getEnv } from '@/lib/env', { logger } from '@/lib/logger'\n2. export interface Project/Career/Skill, GetProjectsOptions/GetCareersOptions/GetSkillsOptions 정의 (PRD '데이터 플로우 및 타입 정의' 섹션 그대로)\n3. const ProjectSchema/CareerSchema/SkillSchema = z.object({...}) (PRD 동일 섹션 그대로)\n4. let cachedClient: Client | null = null; function getClient(): Client { if (!cachedClient) { const env = getEnv(); cachedClient = new Client({ auth: env.NOTION_API_KEY }) } return cachedClient }\n5. function parseProjectPage(page): Project { properties 접근 패턴(title[0]?.plain_text, rich_text.map(...).join(''), multi_select.map(s=>s.name), files[0]?.file?.url ?? null, url, checkbox, select.name, number, new Date(page.created_time)) }\n6. function parseCareerPage(page): Career { company=title, role=rich_text 또는 text, startDate=date.start, endDate=date.end ?? null, description=rich_text, order=number }\n7. function parseSkillPage(page): Skill { name=title, category=select.name, proficiency=number, order=number }\n8. function buildProjectFilter(options), buildProjectSorts(options) 등 헬퍼로 filter/sorts 객체 구성, 복수 조건은 { and: [...] }\n9. export async function getProjects(options?) { try { logger.info(...); const client=getClient(); const res = await client.databases.query({ database_id: getEnv().NOTION_PROJECTS_DB_ID, filter: buildProjectFilter(options), sorts: buildProjectSorts(options) }); const projects = res.results.map(parseProjectPage).map(p=>ProjectSchema.parse(p)); logger.info(count); return projects } catch(e) { logger.error(...); return [] } }\n10. export async function getProjectBySlug(slug) { try { ... filter: { property: 'Slug', rich_text: { equals: slug } } ...; if (res.results.length === 0) return null; return ProjectSchema.parse(parseProjectPage(res.results[0])) } catch(e) { logger.error(...); return null } }\n11. export async function getProjectNeighbors(slug): Promise<{ prev: Project | null, next: Project | null }> { try { const all = await getProjects({ orderBy: 'Order' }); const idx = all.findIndex(p => p.slug === slug); if (idx === -1) return { prev: null, next: null }; return { prev: idx > 0 ? all[idx-1] : null, next: idx < all.length-1 ? all[idx+1] : null } } catch(e) { logger.error(...); return { prev: null, next: null } } } — 이 함수가 prev/next 계산 로직 전체를 캡슐화하여 app/projects/[slug]/page.tsx는 이 함수 호출 결과만 props로 전달.\n12. export async function getCareers(options?), getSkills(options?) 동일 패턴\n13. export async function getProjectCount(options?) { const projects = await getProjects(options); return projects.length }",

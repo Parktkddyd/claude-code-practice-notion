@@ -1,0 +1,3 @@
+- [Portfolio Notion Init Phase 1](project_portfolio_notion_init.md) — portfolio repo Phase 1 완료 상태, PRD 기반 7-phase 로드맵 진행 중
+- [Base UI 아닌 shadcn 패턴](feedback_base_ui_not_shadcn.md) — components/ui/*는 @base-ui/react render prop 패턴, asChild 쓰면 빌드 실패
+- [.gitignore .env* 예외 규칙](feedback_gitignore_env_pattern.md) — .env*로 막힌 repo에서 .env.local.example 커밋하려면 ! 예외 필요

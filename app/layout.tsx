@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Next.js Starter Kit",
-  description: "Next.js + Tailwind CSS + shadcn/ui 웹 스타터킷",
+  title: "Portfolio",
+  description: "Notion DB 기반 개인 포트폴리오 사이트",
 };
 
 export default function RootLayout({
