@@ -1,10 +1,10 @@
 # ROADMAP: Notion DB 기반 개인 포트폴리오 웹 애플리케이션
 
-**최종 업데이트**: 2026-06-28  
+**최종 업데이트**: 2026-06-28 (Task 2 완료 + DB 연동 검증 페이지 추가)  
 **기반 문서**: [PRD.md](./PRD.md)  
 **전체 예상 기간**: 7~11일 (Phase별 누적)
 
-> 이 문서는 **현재 프로젝트 상태(Phase 1 완료, Phase 2 Task 1-2 완료)**를 반영합니다.
+> 이 문서는 **현재 프로젝트 상태(Phase 1 완료, Phase 2 Task 2 완료)**를 반영합니다.
 > Shrimp 작업 관리 시스템에서 Task 진행 중입니다.
 
 ---
@@ -17,12 +17,14 @@
 |------|------|----------|
 | `@notionhq/client` 설치 | ✅ | package.json에 `^5.22.0` 설치됨 |
 | `lib/env.ts` 작성 | ✅ | Zod 검증 스키마, `getEnv()` 함수 구현 |
-| `lib/notion.ts` 구현 | ✅ | **모든 6개 함수 완료**: getProjects, getProjectBySlug, getCareers, getSkills + HTTP REST API 기반 구현 |
+| `lib/notion.ts` 구현 | ✅ | **모든 6개 함수 완료**: getProjects, getProjectBySlug, getProjectNeighbors, getCareers, getSkills, getProjectCount + HTTP REST API 기반 구현 |
 | `.env.local` 파일 작성 | ✅ | 사용자가 환경변수 설정 완료 |
 | `.env.local.example` | ✅ | 템플릿 파일 제공 |
 | `components/portfolio/` 디렉토리 | ✅ | 디렉토리 생성 (파일은 Phase 2에서 작성) |
 | `components/layout/header.tsx` 정합성 | ✅ | NAV_ITEMS에 `/`, `/projects`, `/career` 포함 |
 | Notion DB 연동 검증 | ✅ | 모든 3개 DB (Projects, Careers, Skills) 조회 성공 확인 |
+| **DB 연동 테스트 페이지** | ✅ | `/test-db` 페이지로 실시간 검증 가능 |
+| **사용자 DB 연동 검증** | ✅ | 사용자가 `http://localhost:3000/test-db` 접속해서 데이터 확인 완료 |
 | **npm run build** | ✅ | TypeScript 컴파일 성공 |
 | **npm start** | ✅ | 프로덕션 서버 정상 작동 |
 
@@ -43,9 +45,11 @@
 **Task 2 완료 사항**:
 - ✅ HTTP REST API (`/v1/databases/{dbId}/query`) 기반 구현
 - ✅ Notion SDK v5 호환성 해결
-- ✅ 모든 DB 조회 함수 정상 작동
+- ✅ 모든 DB 조회 함수 정상 작동 (getProjects, getProjectBySlug, getProjectNeighbors, getCareers, getSkills, getProjectCount)
 - ✅ 빌드 및 프로덕션 모드 테스트 완료
 - ✅ 모든 테스트 파일 정리 완료
+- ✅ **DB 연동 테스트 페이지** (`app/test-db/page.tsx`) 작성
+- ✅ **사용자 DB 검증** 완료 (`http://localhost:3000/test-db` 접속 확인)
 
 ---
 
@@ -138,16 +142,25 @@
 ### 예상 소요 시간
 **1~2시간** (대부분 외부 설정: Notion DB 생성, API 키 발급)
 
+### ✅ Phase 1: 사용자 액션 항목 완료
+
+**1.3.1 ✅ DB 연동 검증**:
+- ✅ 사용자가 `http://localhost:3000/test-db` 페이지에서 데이터 확인
+  - ✅ Projects DB 데이터 표시 (개수, 이름, Slug, Featured 여부)
+  - ✅ Career DB 데이터 표시 (회사, 직급, 기간)
+  - ✅ Skills DB 데이터 표시 (스킬명, 카테고리, 숙련도)
+- ✅ 3개 DB 모두 정상 연동 확인 (데이터 없으면 "❌ 데이터 없음" 표시)
+
 ### 완료 기준 (DoD)
 - [x] `@notionhq/client` 설치 (package.json에 ^5.22.0)
 - [x] `lib/env.ts` 완성 (Zod 검증 스키마 + getEnv() 함수)
 - [x] `lib/notion.ts` 완성 (6개 함수 + 타입 + 에러 처리)
 - [x] `components/layout/header.tsx` NAV_ITEMS 확인 (/, /projects, /career)
-- [ ] Notion DB 3개 생성 + 프로퍼티 설정 (사용자)
-- [ ] Notion Integration 생성 + API 키 획득 (사용자)
-- [ ] `.env.local` 파일 생성 및 값 입력 (사용자)
-- [ ] Integration에 3개 DB 공유 권한 설정 (사용자)
-- [ ] `npm run dev` 정상 구동, 콘솔에 에러 없음 확인 (사용자)
+- [x] Notion DB 3개 생성 + 프로퍼티 설정 (사용자)
+- [x] Notion Integration 생성 + API 키 획득 (사용자)
+- [x] `.env.local` 파일 생성 및 값 입력 (사용자)
+- [x] Integration에 3개 DB 공유 권한 설정 (사용자)
+- [x] `npm run dev` 정상 구동, 콘솔에 에러 없음 확인 (사용자)
 
 ---
 
@@ -709,16 +722,16 @@ export default async function HomePage() {
 | | | | **전체** | **~27시간** | **~6시간 진행** |
 
 ### 진행률
-- **Phase 1**: 100% ✅
-- **Phase 2**: 25% (Task 2 완료, Task 1 대기 중)
-- **전체**: ~22% 진행
+- **Phase 1**: 100% ✅ (개발팀 완료, 사용자 검증 완료)
+- **Phase 2**: 33% (Task 2 완료, Task 1,3-6 대기, Task 7-9 Phase 3 예정)
+- **전체**: ~25% 진행
 
 ### Shrimp 작업 매핑
 
 | Task # | 작업 ID | 설명 | 상태 | 시간 |
 |--------|--------|------|------|------|
-| 1️⃣ | 722fdccd | next.config.ts 이미지 도메인 + 헤더 정합성 | ⬜ 대기 | 1h |
-| 2️⃣ | 877e558d | lib/notion.ts 데이터 레이어 (✅ 완료) | ✅ 완료 | 3-4h |
+| 1️⃣ | 722fdccd | next.config.ts 이미지 도메인 + 헤더 정합성 | ⬜ 대기 (시작 가능) | 1h |
+| 2️⃣ | 877e558d | lib/notion.ts 데이터 레이어 ✅ 완료 | ✅ 완료 | 3-4h |
 | 3️⃣ | 885a975c | TechStackBadges, SkillBadge | ⬜ 대기 | 1h |
 | 4️⃣ | 419fa247 | ProjectCard, CareerItem | ⬜ 대기 | 2h |
 | 5️⃣ | 6ba097e4 | SkillCategory, SkillsGrid, CareerTimeline | ⬜ 대기 | 2h |
@@ -792,14 +805,15 @@ export default async function HomePage() {
 ### Phase 1: 프로젝트 초기 설정 ✅ 완료
 - [x] @notionhq/client 설치
 - [x] lib/env.ts 작성
-- [x] lib/notion.ts 완성 (HTTP REST API 기반, 4개 함수)
+- [x] lib/notion.ts 완성 (HTTP REST API 기반, 6개 함수 + getProjectNeighbors)
 - [x] .env.local.example 작성
+- [x] app/test-db/page.tsx 작성 (DB 연동 테스트 페이지)
 - [x] Notion DB 3개 생성 (사용자)
 - [x] .env.local 파일 작성 및 값 입력 (사용자)
 - [x] npm run build 성공
 - [x] npm start 프로덕션 서버 정상 작동
-- [x] Notion DB 접근 테스트 성공
-- [x] 테스트 파일 정리 완료
+- [x] Notion DB 접근 테스트 성공 (http://localhost:3000/test-db에서 검증)
+- [x] 사용자 DB 연동 검증 완료
 
 ### Phase 2: 공통 모듈 개발 🔄 진행 중
 - [ ] Task 1: next.config.ts 이미지 도메인 등록
