@@ -40,17 +40,24 @@ const buttonVariants = cva(
   }
 )
 
+interface ButtonProps
+  extends Omit<ButtonPrimitive.Props, "className">,
+    VariantProps<typeof buttonVariants> {
+  className?: string
+  asChild?: boolean
+}
+
 function Button({
   className,
   variant = "default",
   size = "default",
   ...props
-}: ButtonPrimitive.Props & VariantProps<typeof buttonVariants>) {
+}: ButtonProps) {
   return (
-    <ButtonPrimitive
+    <button
       data-slot="button"
       className={cn(buttonVariants({ variant, size, className }))}
-      {...props}
+      {...(props as any)}
     />
   )
 }

@@ -1,8 +1,13 @@
-import { Client, isFullPage } from '@notionhq/client'
-import { PageObjectResponse } from '@notionhq/client/build/src/api-endpoints'
 import { z } from 'zod'
 import { getEnv } from '@/lib/env'
 import { logger } from '@/lib/logger'
+
+// Notion API 응답 타입 (필요한 부분만)
+interface NotionPage {
+  id: string
+  created_time: string
+  properties: Record<string, any>
+}
 
 // ===== Zod 스키마 =====
 
@@ -71,35 +76,44 @@ export interface GetSkillsOptions {
   limit?: number
 }
 
-// ===== Client 캐싱 =====
+// ===== Notion API 호출 헬퍼 =====
 
-let client: Client | null = null
-const dataSourceIdCache = new Map<string, string>()
+async function queryNotionDatabase(
+  databaseId: string,
+  filter?: Record<string, any>,
+  sorts?: Record<string, any>[]
+): Promise<NotionPage[]> {
+  const env = getEnv()
+  const url = `https://api.notion.com/v1/databases/${databaseId}/query`
 
-function getClient(): Client {
-  if (!client) {
-    const env = getEnv()
-    client = new Client({ auth: env.NOTION_API_KEY })
-  }
-  return client
-}
-
-async function resolveDataSourceId(databaseId: string): Promise<string> {
-  if (dataSourceIdCache.has(databaseId)) {
-    return dataSourceIdCache.get(databaseId)!
+  const body = {
+    page_size: 100,
+    ...(filter && { filter }),
+    ...(sorts && sorts.length > 0 && { sorts }),
   }
 
-  const notionClient = getClient()
-  const response = await notionClient.databases.retrieve({ database_id: databaseId })
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${env.NOTION_API_KEY}`,
+        'Notion-Version': '2022-06-28',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    })
 
-  // DatabaseObjectResponse의 data_sources 필드에서 첫 번째 data_source의 id 추출
-  if ('data_sources' in response && response.data_sources.length > 0) {
-    const dataSourceId = response.data_sources[0].id
-    dataSourceIdCache.set(databaseId, dataSourceId)
-    return dataSourceId
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(`Notion API error: ${error.message}`)
+    }
+
+    const data = await response.json()
+    return data.results || []
+  } catch (error) {
+    logger.error('Notion API 호출 실패', error)
+    throw error
   }
-
-  throw new Error(`No data sources found for database ${databaseId}`)
 }
 
 // ===== 필터/정렬 빌더 =====
@@ -177,23 +191,23 @@ function buildSorts(
 
 // ===== 프로퍼티 접근 헬퍼 =====
 
-function getTitle(page: PageObjectResponse, propertyName: string): string {
+function getTitle(page: NotionPage, propertyName: string): string {
   const prop = page.properties[propertyName]
   if (prop && 'title' in prop && Array.isArray(prop.title)) {
-    return prop.title[0]?.plain_text ?? ''
+    return (prop.title as Array<{ plain_text: string }>)[0]?.plain_text ?? ''
   }
   return ''
 }
 
-function getRichText(page: PageObjectResponse, propertyName: string): string {
+function getRichText(page: NotionPage, propertyName: string): string {
   const prop = page.properties[propertyName]
   if (prop && 'rich_text' in prop && Array.isArray(prop.rich_text)) {
-    return prop.rich_text.map((t) => t.plain_text).join('')
+    return (prop.rich_text as Array<{ plain_text: string }>).map((t) => t.plain_text).join('')
   }
   return ''
 }
 
-function getSelect(page: PageObjectResponse, propertyName: string): string | null {
+function getSelect(page: NotionPage, propertyName: string): string | null {
   const prop = page.properties[propertyName]
   if (prop && 'select' in prop && prop.select) {
     return prop.select.name ?? null
@@ -201,15 +215,15 @@ function getSelect(page: PageObjectResponse, propertyName: string): string | nul
   return null
 }
 
-function getMultiSelect(page: PageObjectResponse, propertyName: string): string[] {
+function getMultiSelect(page: NotionPage, propertyName: string): string[] {
   const prop = page.properties[propertyName]
   if (prop && 'multi_select' in prop && Array.isArray(prop.multi_select)) {
-    return prop.multi_select.map((s) => s.name)
+    return (prop.multi_select as Array<{ name: string }>).map((s) => s.name)
   }
   return []
 }
 
-function getCheckbox(page: PageObjectResponse, propertyName: string): boolean {
+function getCheckbox(page: NotionPage, propertyName: string): boolean {
   const prop = page.properties[propertyName]
   if (prop && 'checkbox' in prop) {
     return prop.checkbox ?? false
@@ -217,7 +231,7 @@ function getCheckbox(page: PageObjectResponse, propertyName: string): boolean {
   return false
 }
 
-function getNumber(page: PageObjectResponse, propertyName: string): number {
+function getNumber(page: NotionPage, propertyName: string): number {
   const prop = page.properties[propertyName]
   if (prop && 'number' in prop) {
     return prop.number ?? 0
@@ -225,7 +239,7 @@ function getNumber(page: PageObjectResponse, propertyName: string): number {
   return 0
 }
 
-function getUrl(page: PageObjectResponse, propertyName: string): string | null {
+function getUrl(page: NotionPage, propertyName: string): string | null {
   const prop = page.properties[propertyName]
   if (prop && 'url' in prop) {
     return prop.url ?? null
@@ -233,7 +247,7 @@ function getUrl(page: PageObjectResponse, propertyName: string): string | null {
   return null
 }
 
-function getFileUrl(page: PageObjectResponse, propertyName: string): string | null {
+function getFileUrl(page: NotionPage, propertyName: string): string | null {
   const prop = page.properties[propertyName]
   if (prop && 'files' in prop && Array.isArray(prop.files) && prop.files.length > 0) {
     const file = prop.files[0]
@@ -247,7 +261,7 @@ function getFileUrl(page: PageObjectResponse, propertyName: string): string | nu
   return null
 }
 
-function getDate(page: PageObjectResponse, propertyName: string): Date | null {
+function getDate(page: NotionPage, propertyName: string): Date | null {
   const prop = page.properties[propertyName]
   if (prop && 'date' in prop && prop.date?.start) {
     return new Date(prop.date.start)
@@ -257,7 +271,7 @@ function getDate(page: PageObjectResponse, propertyName: string): Date | null {
 
 // ===== 페이지 매핑 =====
 
-function mapPageToProject(page: PageObjectResponse): Project | null {
+function mapPageToProject(page: NotionPage): Project | null {
   const raw = {
     id: page.id,
     name: getTitle(page, 'Name'),
@@ -285,7 +299,7 @@ function mapPageToProject(page: PageObjectResponse): Project | null {
   return result.data
 }
 
-function mapPageToCareer(page: PageObjectResponse): Career | null {
+function mapPageToCareer(page: NotionPage): Career | null {
   const raw = {
     id: page.id,
     company: getTitle(page, 'Company'),
@@ -309,7 +323,7 @@ function mapPageToCareer(page: PageObjectResponse): Career | null {
   return result.data
 }
 
-function mapPageToSkill(page: PageObjectResponse): Skill | null {
+function mapPageToSkill(page: NotionPage): Skill | null {
   const raw = {
     id: page.id,
     name: getTitle(page, 'Name'),
@@ -339,19 +353,15 @@ export async function getProjects(
   try {
     logger.info('Notion: 프로젝트 조회', { options })
 
-    const client = getClient()
     const env = getEnv()
-    const dataSourceId = await resolveDataSourceId(env.NOTION_PROJECTS_DB_ID)
 
-    const response = await client.dataSources.query({
-      data_source_id: dataSourceId,
-      filter: buildProjectFilter(options),
-      sorts: buildSorts(options?.orderBy, options?.ascending),
-      page_size: options?.limit ?? 100,
-    })
+    const pages = await queryNotionDatabase(
+      env.NOTION_PROJECTS_DB_ID,
+      buildProjectFilter(options),
+      buildSorts(options?.orderBy, options?.ascending)
+    )
 
-    const projects = response.results
-      .filter(isFullPage)
+    const projects = pages
       .map(mapPageToProject)
       .filter((p): p is Project => p !== null)
 
@@ -367,25 +377,21 @@ export async function getProjectBySlug(slug: string): Promise<Project | null> {
   try {
     logger.info('Notion: 프로젝트 상세 조회', { slug })
 
-    const client = getClient()
     const env = getEnv()
-    const dataSourceId = await resolveDataSourceId(env.NOTION_PROJECTS_DB_ID)
 
-    const response = await client.dataSources.query({
-      data_source_id: dataSourceId,
-      filter: {
+    const pages = await queryNotionDatabase(
+      env.NOTION_PROJECTS_DB_ID,
+      {
         property: 'Slug',
         rich_text: { equals: slug },
-      },
-      page_size: 1,
-    })
+      }
+    )
 
-    const fullPages = response.results.filter(isFullPage)
-    if (fullPages.length === 0) {
+    if (pages.length === 0) {
       return null
     }
 
-    const project = mapPageToProject(fullPages[0])
+    const project = mapPageToProject(pages[0])
     if (project) {
       logger.info('Notion: 프로젝트 상세 조회 완료', { slug })
     }
@@ -402,19 +408,15 @@ export async function getCareers(
   try {
     logger.info('Notion: 경력 조회', { options })
 
-    const client = getClient()
     const env = getEnv()
-    const dataSourceId = await resolveDataSourceId(env.NOTION_CAREER_DB_ID)
 
-    const response = await client.dataSources.query({
-      data_source_id: dataSourceId,
-      filter: buildCareerFilter(),
-      sorts: buildSorts(options?.orderBy, options?.ascending),
-      page_size: options?.limit ?? 100,
-    })
+    const pages = await queryNotionDatabase(
+      env.NOTION_CAREER_DB_ID,
+      buildCareerFilter(),
+      buildSorts(options?.orderBy, options?.ascending)
+    )
 
-    const careers = response.results
-      .filter(isFullPage)
+    const careers = pages
       .map(mapPageToCareer)
       .filter((c): c is Career => c !== null)
 
@@ -432,19 +434,15 @@ export async function getSkills(
   try {
     logger.info('Notion: 스킬 조회', { options })
 
-    const client = getClient()
     const env = getEnv()
-    const dataSourceId = await resolveDataSourceId(env.NOTION_SKILLS_DB_ID)
 
-    const response = await client.dataSources.query({
-      data_source_id: dataSourceId,
-      filter: buildSkillFilter(options),
-      sorts: buildSorts(options?.orderBy, options?.ascending),
-      page_size: options?.limit ?? 100,
-    })
+    const pages = await queryNotionDatabase(
+      env.NOTION_SKILLS_DB_ID,
+      buildSkillFilter(options),
+      buildSorts(options?.orderBy, options?.ascending)
+    )
 
-    const skills = response.results
-      .filter(isFullPage)
+    const skills = pages
       .map(mapPageToSkill)
       .filter((s): s is Skill => s !== null)
 
