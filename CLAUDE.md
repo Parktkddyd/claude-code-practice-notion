@@ -4,7 +4,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 프로젝트 개요
 
-Next.js 16 + React 19 기반의 인보이스 웹 애플리케이션 스타터킷입니다. shadcn/ui 컴포넌트와 React Hook Form + Zod를 통한 폼 유효성 검사를 활용합니다.
+Next.js 16 + React 19 기반의 **Notion DB 기반 개인 포트폴리오 웹 애플리케이션**입니다. shadcn/ui 컴포넌트와 React Hook Form + Zod를 통한 폼 유효성 검사를 활용하며, Notion을 CMS로 하여 포트폴리오 데이터(프로젝트, 경력, 기술 스택)를 관리합니다.
+
+### 📋 Project Context
+
+- **PRD 문서**: @docs/PRD.md — 완전한 제품 요구사항 명세 및 기술 아키텍처
+- **개발 로드맵**: @docs/ROADMAP.md — 단계별 구현 일정 (Phase 1~4, 7~11일 예상)
+
+이 두 문서를 참고하여 Notion API 연동, 포트폴리오 페이지 구현, ISR 기반 배포를 진행합니다.
 
 ## 개발 환경 및 명령어
 
