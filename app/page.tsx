@@ -16,12 +16,12 @@ export default function HomePage() {
         Notion을 CMS로 활용한 개인 포트폴리오 사이트입니다.
       </p>
       <div className="mt-8 flex justify-center gap-3">
-        <Button asChild>
-          <Link href="/projects">프로젝트 보기</Link>
-        </Button>
-        <Button variant="outline" asChild>
-          <Link href="/career">경력 보기</Link>
-        </Button>
+        <Link href="/projects" className="inline-flex h-8 items-center justify-center rounded-lg bg-primary px-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/80 transition-all">
+          프로젝트 보기
+        </Link>
+        <Link href="/career" className="inline-flex h-8 items-center justify-center rounded-lg border border-border bg-background px-2.5 text-sm font-medium hover:bg-muted hover:text-foreground transition-all">
+          경력 보기
+        </Link>
       </div>
     </div>
   )
